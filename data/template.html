@@ -100,6 +100,7 @@ footer a{color:inherit}
     <button role="tab" data-tab="lookup">Lookup</button>
     <button role="tab" data-tab="mods">Mod finder</button>
     <button role="tab" data-tab="parts">Parts</button>
+    <button role="tab" data-tab="twins">Twins</button>
     <button role="tab" data-tab="picker">Picker</button>
     <button role="tab" data-tab="collection">Collection<span class="n" id="colN"></span></button>
   </nav>
@@ -128,6 +129,16 @@ footer a{color:inherit}
       <div class="field"><label for="pq">Part number</label><input type="search" id="pq" placeholder="BA-6, 1-453-366-11, RM-Y180…" autocomplete="off"></div>
     </div>
     <div id="pres"></div>
+  </section>
+
+  <section class="panel" id="p-twins" role="tabpanel" hidden>
+    <p class="intro">Sets that are likely the same TV or monitor sold under different model numbers: rebadges, retailer variants, and OEM builds. A group means the sets match on screen size plus at least three of chassis, tube, flyback, yoke, and jungle IC. Twins usually share service manuals and swap boards cleanly.</p>
+    <div class="row">
+      <div class="field"><label for="tq">Filter by brand or model</label><input type="search" id="tq" placeholder="Quasar, Ikegami, KV-27FS…" autocomplete="off"></div>
+      <label class="chk" style="margin-bottom:6px"><input type="checkbox" id="tx">Different brands only</label>
+    </div>
+    <div class="count" id="tcount"></div>
+    <div id="tres"></div>
   </section>
 
   <section class="panel" id="p-picker" role="tabpanel" hidden>
@@ -222,7 +233,7 @@ function search(q,cap){
 }
 
 // ---------- tabs ----------
-const TABS=['lookup','mods','parts','picker','collection'];
+const TABS=['lookup','mods','parts','twins','picker','collection'];
 function show(t){
   if(!TABS.includes(t)) t='lookup';
   document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
@@ -231,6 +242,7 @@ function show(t){
   if(t==='collection') renderCol();
   if(t==='picker') renderPicker();
   if(t==='mods') renderMods();
+  if(t==='twins') renderTwins();
 }
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('button[data-tab]');if(b)show(b.dataset.tab)});
 
@@ -296,6 +308,44 @@ function renderParts(){
 $('pq').addEventListener('input',renderParts);
 $('pf').addEventListener('change',renderParts);
 function goPart(f,v){ $('pf').value=String(f); $('pq').value=v; closeSheet(); show('parts'); renderParts(); }
+
+// ---------- twins ----------
+const NP=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const TWIN_OF=new Map(); TWINS.forEach((g,gi)=>g.forEach(i=>TWIN_OF.set(i,gi)));
+const PF=[[16,'chassis'],[9,'tube'],[17,'flyback'],[18,'yoke'],[15,'jungle IC']];
+function shared(a,b){
+  const A=SETS[a],B=SETS[b],out=[];
+  PF.forEach(([fi,label])=>{const x=[].concat(A[fi]).filter(Boolean).map(NP),y=[].concat(B[fi]).filter(Boolean).map(NP);
+    if(x.length&&y.length&&x.some(v=>y.includes(v)))out.push(label)});
+  return out;
+}
+function relatives(i){
+  const r=SETS[i],gi=TWIN_OF.get(i),res=[];
+  SETS.forEach((x,j)=>{
+    if(j===i||Math.abs(x[4]-r[4])>0.5)return;
+    if(gi!=null&&TWIN_OF.get(j)===gi)return;
+    const s=shared(i,j);
+    if(s.length===2&&(s.includes('chassis')||s.includes('tube')))res.push([j,s]);
+  });
+  return res.slice(0,8);
+}
+function groupParts(g){
+  const common=PF.filter(([fi])=>{const vals=g.map(i=>[].concat(SETS[i][fi]).filter(Boolean).map(NP));return vals.every(v=>v.length)&&vals[0].some(v=>vals.every(w=>w.includes(v)))});
+  const r=SETS[g[0]];
+  return common.map(([fi,label])=>label+' '+([].concat(r[fi]).find(v=>g.every(i=>[].concat(SETS[i][fi]).map(NP).includes(NP(v))))||''));
+}
+let tLimit=25;
+function renderTwins(){
+  const q=$('tq').value.trim(), x=$('tx').checked, nq=norm(q);
+  const gs=TWINS.filter(g=>(!x||new Set(g.map(i=>SETS[i][1].toLowerCase())).size>1)&&(!nq||g.some(i=>IDX[i].s.includes(nq)||norm(SETS[i][1]).includes(nq))));
+  $('tcount').textContent=gs.length+' group'+(gs.length===1?'':'s')+' · '+gs.reduce((s,g)=>s+g.length,0)+' sets';
+  $('tres').innerHTML=gs.length?gs.slice(0,tLimit).map(g=>{const brands=[...new Set(g.map(i=>SETS[i][1]))];
+    return `<div class="group"><h3>${esc(brands.join(' / '))} <small>${g.length} sets · ${SETS[g[0]][4]}" · shared ${esc(groupParts(g).join(', ')||'parts vary by pair')}</small></h3>${list(g,50)}</div>`}).join('')+
+    (gs.length>tLimit?`<button class="btn more" data-more="t">Show more groups</button>`:'')
+    :'<div class="empty">No twin groups match that.</div>';
+}
+$('tq').addEventListener('input',()=>{tLimit=25;renderTwins()});
+$('tx').addEventListener('change',renderTwins);
 
 // ---------- picker ----------
 let fLimit=30;
@@ -369,6 +419,13 @@ function ebay(r,sold){
   const model=r[0].replace(/\s*\(.*?\)\s*/g,' ').trim();
   return 'https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(model)+(sold?'&LH_Sold=1&LH_Complete=1&_sop=13':'&_sop=15');
 }
+function twinBlock(i){
+  const gi=TWIN_OF.get(i), tw=gi!=null?TWINS[gi].filter(j=>j!==i):[], rel=relatives(i);
+  if(!tw.length&&!rel.length) return '';
+  const rowHtml=(j,s)=>`<button class="item" data-i="${j}"><span class="nm">${esc(SETS[j][0])}${badges(SETS[j])}</span><span class="side">${SETS[j][4]}"</span><span class="meta">shares ${esc(s.join(', '))}</span></button>`;
+  return (tw.length?`<div class="sec">Likely the same set · ${tw.length}</div><div class="list">${tw.map(j=>rowHtml(j,shared(i,j))).join('')}</div>`:'')+
+    (rel.length?`<div class="sec">Close relatives</div><div class="list">${rel.map(([j,s])=>rowHtml(j,s)).join('')}</div>`:'');
+}
 function openSheet(i){
   const r=SETS[i]; lastFocus=document.activeElement;
   const row=(k,v)=>v?`<dt>${k}</dt><dd>${v}</dd>`:'';
@@ -384,6 +441,7 @@ function openSheet(i){
    <dl class="spec">${row('Type',esc(r[3]))}${row('Size',r[4]+'" viewable'+(r[5]?' · '+esc(r[5]):''))}${row('Inputs',esc(r[6].join(', ')))}${row('Resolutions',esc(r[13].join(', ')))}${row('Sync',esc(r[27].join(', ')))}${row('Formats',esc(r[14].join(', ')))}${row('Comb filter',esc(r[24].join(', ')))}${row('Tube',esc([r[8],r[9]].filter(Boolean).join(' ')))}${row('Mask',esc(r[7]))}</dl>
    <div class="sec">Parts${shared?` · ${shared} other set${shared===1?'':'s'} on this chassis`:''}</div>
    <dl class="spec"><dt>Chassis</dt><dd>${chips(16,r[16])}</dd><dt>Jungle IC</dt><dd>${r[15].length?r[15].map(c=>`<button class="part" data-chip="${esc(c)}">${esc(c)}</button>`).join(' '):'<span style="color:var(--muted)">not listed</span>'}</dd><dt>Flyback</dt><dd>${chips(17,r[17])}</dd><dt>Yoke</dt><dd>${chips(18,r[18])}</dd><dt>Vertical IC</dt><dd>${chips(20,r[20])}</dd><dt>Tube model</dt><dd>${chips(9,r[9]?[r[9]]:[])}</dd><dt>Remote</dt><dd>${chips(19,r[19])}</dd></dl>
+   ${twinBlock(i)}
    <div class="sec">Other</div>
    <dl class="spec">${row('Launched',r[22]||'')}${row('MSRP',esc(r[23]))}${row('Weight',r[11]?r[11]+' lb':'')}${row('Power',esc(r[25].join(', ')))}${row('Market',esc(r[26]))}${row('Made in',esc(r[10]))}${row('Tags',esc(r[29].join(', ')))}</dl>`;
   $('sheet').hidden=false; $('scrim').hidden=false; $('shClose').focus();
@@ -397,7 +455,7 @@ function toggleCol(kind){
   if(col[kind].includes(p)) col[kind]=col[kind].filter(x=>x!==p); else {col[kind].push(p); col[other]=col[other].filter(x=>x!==p)}
   saveCol(); openSheet(+$('sheet').dataset.i); refresh();
 }
-function refresh(){ const t=TABS.find(x=>!$('p-'+x).hidden); ({lookup:renderLookup,mods:renderMods,parts:renderParts,picker:renderPicker,collection:renderCol})[t](); }
+function refresh(){ const t=TABS.find(x=>!$('p-'+x).hidden); ({lookup:renderLookup,mods:renderMods,parts:renderParts,twins:renderTwins,picker:renderPicker,collection:renderCol})[t](); }
 
 // ---------- delegated clicks ----------
 document.addEventListener('click',e=>{
@@ -405,7 +463,7 @@ document.addEventListener('click',e=>{
   const ch=e.target.closest('[data-chip]'); if(ch){ $('mq').value=ch.dataset.chip; closeSheet(); show('mods'); renderMods(); return }
   const g=e.target.closest('[data-goto]'); if(g){goPart(g.dataset.goto,g.dataset.v);return}
   const m=e.target.closest('[data-more]'); if(m){const k=m.dataset.more;
-    if(k==='l'){lLimit+=50;renderLookup()} else if(k==='f'){fLimit+=50;renderPicker()} else if(k==='m'){mLimit+=30;renderMods()}
+    if(k==='l'){lLimit+=50;renderLookup()} else if(k==='t'){tLimit+=25;renderTwins()} else if(k==='f'){fLimit+=50;renderPicker()} else if(k==='m'){mLimit+=30;renderMods()}
     else { const ids=k.startsWith('chip:')?CHIPS.find(o=>o.chip===k.slice(5)).sets:null;
       if(ids){$('mq').value=k.slice(5);renderMods()} else {const [f,v]=k.slice(2).split(/\|(.*)/s);goPart(f,v)} }
     return}

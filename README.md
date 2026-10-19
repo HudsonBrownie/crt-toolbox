@@ -9,6 +9,7 @@ A free reference site for CRT collectors and repair folks, built on data from [C
 - **Lookup:** search 1,957 sets by brand, model, series, or chassis and open a full spec sheet (inputs, resolutions, sync, tube, mask, launch year, MSRP, power, and more).
 - **Mod finder:** see a set's jungle IC and any documented mods (RGB via mux, direct, or CC; S-Video; component), then browse every other set on the same chip.
 - **Parts:** cross-reference chassis, jungle IC, flyback, yoke, tube model, vertical output IC, and remote. Matching ignores dashes and spaces.
+- **Twins:** sets that are likely the same TV or monitor under different model numbers (rebadges, retailer variants, OEM builds). Grouped when they match on screen size plus at least three of chassis, tube, flyback, yoke, and jungle IC.
 - **Picker:** filter by size, weight, type, mask, power standard, launch year, and must-have inputs or resolutions to build a shortlist.
 - **Collection:** mark sets as Own or Want and see totals by tube and brand. Saved in your browser, with export and import for backups.
 

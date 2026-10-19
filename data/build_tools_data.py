@@ -19,6 +19,27 @@ for x in d:
       yr(x),(L(x,'MSRP') or [''])[0],L(x,'Comb Filtering'),L(x,'Power Standard'),(L(x,'Market') or [''])[0],x['sync'],
       x.get('image',''),[t for t in x['tags'] if t in KEEP_TAGS],x['h_scan']])
 out.sort(key=lambda r:(r[1].lower(),r[0].lower()))
-js='const SETS='+json.dumps(out,separators=(',',':'),ensure_ascii=False)+';'
+# ---- twins: sets that share size plus 3+ of chassis/tube/flyback/yoke/jungle (incl. chassis or tube)
+N=lambda s:re.sub(r'[^A-Z0-9]','',str(s).upper())
+sig=[(r[4],{N(v) for v in r[16]},N(r[9]),{N(v) for v in r[17]},{N(v) for v in r[18]},{N(v) for v in r[15]}) for r in out]
+par=list(range(len(out)))
+def f(x):
+    while par[x]!=x: par[x]=par[par[x]]; x=par[x]
+    return x
+for i in range(len(out)):
+    a=sig[i]
+    for j in range(i+1,len(out)):
+        c=sig[j]
+        if abs(a[0]-c[0])>0.5: continue
+        ch=bool(a[1]&c[1]); tb=bool(a[2] and a[2]==c[2])
+        if not(ch or tb): continue
+        m=ch+tb+bool(a[3]&c[3])+bool(a[4]&c[4])+bool(a[5]&c[5])
+        if m>=3: par[f(i)]=f(j)
+groups={}
+for i in range(len(out)): groups.setdefault(f(i),[]).append(i)
+twins=[g for g in groups.values() if len(g)>1]
+twins.sort(key=lambda g:(-len({out[i][1].lower() for i in g}),-len(g)))
+print(len(twins),'twin groups',sum(map(len,twins)),'sets',file=sys.stderr)
+js='const SETS='+json.dumps(out,separators=(',',':'),ensure_ascii=False)+';\nconst TWINS='+json.dumps(twins,separators=(',',':'))+';'
 open('data.js','w',encoding='utf-8').write(js)
 print(len(out),'sets',len(js)//1024,'KB',file=sys.stderr)
