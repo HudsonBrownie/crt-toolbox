@@ -365,6 +365,10 @@ function importText(t){
 // ---------- sheet ----------
 let lastFocus=null;
 function chips(fi,vals){return vals&&vals.length?vals.map(v=>`<button class="part" data-goto="${fi}" data-v="${esc(v)}">${esc(v)}</button>`).join(' '):'<span style="color:var(--muted)">not listed</span>'}
+function ebay(r,sold){
+  const model=r[0].replace(/\s*\(.*?\)\s*/g,' ').trim();
+  return 'https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(model)+(sold?'&LH_Sold=1&LH_Complete=1&_sop=13':'&_sop=15');
+}
 function openSheet(i){
   const r=SETS[i]; lastFocus=document.activeElement;
   const row=(k,v)=>v?`<dt>${k}</dt><dd>${v}</dd>`:'';
@@ -374,6 +378,7 @@ function openSheet(i){
    ${window.SHOW_IMG&&r[28]?`<img class="photo" src="${esc(r[28])}" alt="${esc(r[0])}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:''}
    <div class="row"><button class="btn o" aria-pressed="${st==='own'}" data-col="own">Own</button><button class="btn w" aria-pressed="${st==='want'}" data-col="want">Want</button>
      <a class="btn" href="https://crtdatabase.com/crts/${esc(r[12])}" target="_blank" rel="noopener">CRT Database page</a></div>
+   <div class="row"><a class="btn" href="${ebay(r,false)}" target="_blank" rel="noopener">For sale on eBay</a><a class="btn" href="${ebay(r,true)}" target="_blank" rel="noopener">Sold on eBay</a></div>
    ${(!rgbIn(r)&&r[3]==='Consumer')?`<div class="callout">${hasRGBmod(r)?`<b>RGB mod documented:</b> ${esc(r[21].join(', '))}.`:r[15].length?`No mod documented yet. Check the <button class="part" data-chip="${esc(r[15][0])}">${esc(r[15][0])}</button> page in Mod finder to see other sets on the same chip.`:'No jungle IC listed yet, so the mod finder can\'t help with this one.'}</div>`:''}
    <div class="sec">Picture</div>
    <dl class="spec">${row('Type',esc(r[3]))}${row('Size',r[4]+'" viewable'+(r[5]?' · '+esc(r[5]):''))}${row('Inputs',esc(r[6].join(', ')))}${row('Resolutions',esc(r[13].join(', ')))}${row('Sync',esc(r[27].join(', ')))}${row('Formats',esc(r[14].join(', ')))}${row('Comb filter',esc(r[24].join(', ')))}${row('Tube',esc([r[8],r[9]].filter(Boolean).join(' ')))}${row('Mask',esc(r[7]))}</dl>
